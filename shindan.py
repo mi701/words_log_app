@@ -101,7 +101,8 @@ def test_generation(model_name):
 def main():
     print("--- Gemini API 自動モデル識別・生成診断 ---\n")
 
-    api_key = input("APIキーを入力してください（表示されません）: ").strip()
+    api_key = input("APIキーを入力してください（このツール内でのみ使用され、保存されません）: ").strip()
+    
     if not api_key:
         print("APIキーが入力されていません。終了します。")
         return
