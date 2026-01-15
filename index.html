@@ -330,14 +330,21 @@ const App = () => {
                 if (nextLog && mode === 'distill') {
                     const diffDays = Math.round(Math.abs(new Date(log.dateString) - new Date(nextLog.dateString)) / (1000 * 60 * 60 * 24)); 
                     if (diffDays > 1) {
-                        const auraStyles = {
-                            amber: "via-amber-100/50 dark:via-orange-400/20", 
-                            sky:   "via-sky-100/50 dark:via-blue-400/15",
-                            white: "via-white/80 dark:via-stone-100/10",
-                            dream: "bg-gradient-to-r from-rose-200/70 via-purple-200/70 to-sky-200/70 dark:from-rose-500/30 dark:via-purple-500/30 dark:to-sky-500/30 animate-dream"
-                        };
+const auraStyles = {
+    // 【温】: 
+    amber: "via-amber-300/40 dark:via-amber-400/20", 
+
+    // 【清】: 
+    sky: "via-sky-200/80 dark:via-blue-400/15",
+
+    // 【無】: 
+    white: "via-white dark:via-stone-100/10",
+
+    // 【夢】: ライトモードでは不透明度を 80% まで上げると、ユニコーンの空のような色が出ます。
+    dream: "bg-gradient-to-r from-rose-200/80 via-purple-200/80 to-sky-200/80 dark:from-rose-500/30 dark:via-purple-500/30 dark:to-sky-500/30 animate-dream"
+};
                         atmosphereGap = (
-                            <div className="w-full h-32 my-6 relative overflow-hidden pointer-events-none aura-mask" aria-hidden="true">
+                            <div className="w-full h-40 my-6 relative overflow-hidden pointer-events-none aura-mask" aria-hidden="true">
                                 {auraType === 'dream' ? (
                                     <div className={`absolute inset-0 scale-150 blur-3xl ${auraStyles.dream}`}></div>
                                 ) : (
