@@ -12,7 +12,6 @@
     <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- アイコン -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 
     <script>
@@ -22,20 +21,22 @@
                 extend: {
                     colors: {
                         shelter: {
-                            // 基本色：古紙（Old Paper）
+                            // 基本理念に基づいた「古紙」と「凪」のパレット
                             bg: '#F2F0EB', text: '#5C5A56', chip: '#E6E2DC', border: '#D1CDC7', muted: '#A8A29A',
                             dark: { bg: '#2C3036', text: '#B0B6BE', chip: '#3A3F47', border: '#454B54', muted: '#6C7582' }
                         }
                     },
                     animation: { 
                         'in': 'fadeIn 0.4s ease-out',
-                        'dream': 'dreamMove 20s ease-in-out infinite alternate' 
+                        'dream': 'dreamMove 20s ease-in-out infinite alternate'
                     },
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0', transform: 'translateY(4px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
                         dreamMove: {
-                            '0%': { transform: 'scale(1.1) rotate(0deg)' },
-                            '100%': { transform: 'scale(1.4) rotate(8deg)' }
+                            '0%': { opacity: '1', transform: 'scale(1)' },
+                            '40%': { opacity: '0', transform: 'scale(0.98)' }, // 早めに消え始める
+                            '60%': { opacity: '0', transform: 'scale(0.98)' }, // 少しだけ透明な時間を維持して「点滅感」を消す
+                            '100%': { opacity: '1', transform: 'scale(1)' }
                         }
                     }
                 }
@@ -49,12 +50,13 @@
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #454B54; }
         body { font-family: "Helvetica Neue", Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
         
-        /* 質感のぼかしマスク */
+        /* 質感の境界をぼかすマスク（中央から端にかけて消える） */
         .aura-mask {
             mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
             -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
         }
 
+        /* 抽出モードの点線タイムライン */
         .dotted-line {
             background-image: radial-gradient(#D1CDC7 1px, transparent 1px);
             background-size: 1px 12px;
@@ -64,6 +66,7 @@
             background-image: radial-gradient(#454B54 1px, transparent 1px);
         }
 
+        /* 編集モードのゆらゆら */
         @keyframes shake {
             0%, 100% { transform: rotate(0deg); }
             25% { transform: rotate(-0.5deg); }
@@ -79,14 +82,14 @@
 <script type="text/babel" data-type="module">
 const { useState, useEffect, useRef, useMemo } = React;
 
-// --- Database (Dexie.js) ---
+// --- データベース設定 ---
 const db = new Dexie("ShelterDB");
 db.version(2).stores({
     logs: '++id, timestamp, dateString, is_ai_generated',
     user_words: '++id, word, category'
 });
 
-// --- Constants ---
+// --- 単語のプリセット ---
 const DEFAULT_WORDS = {
   feeling: ['だるい','めんどい','ねむい','つかれた','しんどい','不安','むなしい','落ち着かない','イライラ','泣きたい','まあまあ','悪くない','スッキリ','モヤモヤ','さみしい'],
   body: ['ねむれない','おなかすいた','喉がかわいた','あたまいたい','身体が重い','痛い','かゆい','息苦しい','目が痛い','ふらふら','熱っぽい','冷えた','食べ過ぎた'],
@@ -100,18 +103,19 @@ const DEFAULT_WORDS = {
   quantity: ['いっぱい','半分','少し','空っぽ','足りない','多すぎる','ちょうどいい','ゼロ','増えた','減った','残りわずか','あふれた']
 };
 
-// --- Components ---
+// --- コンポーネント: 単語チップ ---
 const Chip = ({ children, onClick, active, loading, isEditing }) => (
   <button onClick={onClick} disabled={loading} className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform whitespace-nowrap ${active ? 'bg-shelter-text text-white dark:bg-shelter-dark-text dark:text-shelter-dark-bg shadow-sm' : 'bg-shelter-chip text-shelter-text hover:bg-shelter-border border border-transparent dark:bg-shelter-dark-chip dark:text-shelter-dark-text'} ${loading ? 'opacity-50 animate-pulse' : ''} ${isEditing ? 'editing-shake border-red-200 dark:border-red-900 text-red-600 dark:text-red-400' : 'active:scale-95'}`}>
     {isEditing && <span className="mr-1">×</span>}{children}
   </button>
 );
 
+// --- コンポーネント: キャンバスの言葉 ---
 const CanvasWord = ({ word, onClick }) => (
   <div onClick={onClick} className="bg-white dark:bg-shelter-dark-bg px-3 py-1.5 rounded-lg border border-shelter-border dark:border-shelter-dark-border shadow-sm text-sm font-mono animate-in float-animation cursor-pointer text-shelter-text dark:text-shelter-dark-text hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors">{word}</div>
 );
 
-// --- App ---
+// --- メインアプリケーション ---
 const App = () => {
   const [activeTab, setActiveTab] = useState('record');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -131,6 +135,7 @@ const App = () => {
   const cachedModelName = useRef(null);
   const customInputRef = useRef(null);
 
+  // テーマ切り替え
   useEffect(() => {
     const root = document.getElementById('root');
     if (theme === 'dark') { root.classList.add('dark'); document.body.classList.add('dark'); } 
@@ -141,7 +146,10 @@ const App = () => {
   useEffect(() => { localStorage.setItem('shelter_aura', auraType); }, [auraType]);
   useEffect(() => { localStorage.setItem('shelter_gemini_api_key', apiKey); cachedModelName.current = null; }, [apiKey]);
 
-  useEffect(() => { if (selectedCategory) db.user_words.where('category').equals(selectedCategory).toArray().then(words => setUserWords(words)); }, [selectedCategory]);
+  // カテゴリ選択時にポケットを読み込み
+  useEffect(() => { 
+      if (selectedCategory) db.user_words.where('category').equals(selectedCategory).toArray().then(words => setUserWords(words)); 
+  }, [selectedCategory]);
 
   const resolveModelName = async (key) => {
     if (cachedModelName.current) return cachedModelName.current;
@@ -154,18 +162,21 @@ const App = () => {
     return "models/gemini-1.5-flash"; 
   };
 
+  // AI取得処理
   const fetchWords = async (category) => {
     if (!apiKey || aiDisabled || !category) return;
-    setIsLoading(true); setLastError(null); setDebugInfo("思考中...");
+    setIsLoading(true); setDebugInfo("思考中..."); setLastError(null);
     try {
       const modelName = await resolveModelName(apiKey.trim());
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey.trim()}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: `Generate 10 Japanese hiragana words for "${category}". Abstract, soft, no future intent, no questions. JSON array only.` }] }], generationConfig: { response_mime_type: "application/json" } })
       });
-      if (!res.ok) { if (res.status === 429) { setAiDisabled(true); setLastError("制限を超えました"); } throw new Error(`HTTP ${res.status}`); }
+      if (!res.ok) { if (res.status === 429) setAiDisabled(true); throw new Error(`HTTP ${res.status}`); }
       const data = await res.json();
-      const resultWords = JSON.parse(data.candidates[0].content.parts[0].text);
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("データ空");
+      const resultWords = JSON.parse(text);
       setAiWords(prev => ({ ...prev, [category]: resultWords }));
       setDebugInfo(null);
     } catch (error) { setLastError(error.message); setDebugInfo("エラー"); } finally { setIsLoading(false); }
@@ -189,7 +200,8 @@ const App = () => {
       handleAddWord(val);
       if(customInputRef.current) customInputRef.current.value = '';
       setShowCustomInput(false);
-      if (!DEFAULT_WORDS[selectedCategory]?.includes(val) && !userWords.some(u => u.word === val)) {
+      const isKnown = (DEFAULT_WORDS[selectedCategory]?.includes(val)) || (userWords.some(u => u.word === val));
+      if (!isKnown) {
           setTimeout(async () => {
               if (window.confirm(`「${val}」をポケットに入れますか？`)) {
                   const id = await db.user_words.add({ word: val, category: selectedCategory });
@@ -205,7 +217,7 @@ const App = () => {
     setCanvasWords([]);
   };
 
-  // --- 記録タブ (RecordTab) ---
+  // --- 記録タブ ---
   const RecordTab = () => {
     const [catPage, setCatPage] = useState(0);
     const categories = [{ id: 'feeling', label: '気分' }, { id: 'body', label: '身体' }, { id: 'state', label: '状態' }, { id: 'action', label: '動き' }, { id: 'env', label: '周囲' }, { id: 'objects', label: '物品' }, { id: 'texture', label: '感触' }, { id: 'dist_space', label: '場所' }, { id: 'time', label: '時間' }, { id: 'quantity', label: '分量' }];
@@ -213,18 +225,13 @@ const App = () => {
 
     return (
       <div className="flex flex-col h-full bg-shelter-bg dark:bg-shelter-dark-bg transition-colors duration-700">
-        {/* 日付ヘッダー */}
         <div className="pt-6 px-6 pb-0 flex justify-between items-end flex-none"><h1 className="text-sm font-mono text-shelter-muted dark:text-shelter-dark-muted tracking-widest">{new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}</h1></div>
         
-        {/* キャンバスエリア */}
         <div className="canvas-area p-6 flex-none min-h-[140px] max-h-[25vh] overflow-auto flex flex-wrap content-start gap-3 border-b border-shelter-border dark:border-shelter-dark-border/50">
           {canvasWords.length === 0 ? <div className="w-full h-full flex items-center justify-center text-shelter-muted/30 dark:text-shelter-dark-muted/30 text-xs font-mono italic">ここに言葉を置く</div> : canvasWords.map((word,i) => <CanvasWord key={`${word}-${i}`} word={word} onClick={() => handleRemoveWord(i)} />)}
         </div>
 
-        {/* 入力デッキ：ここから下がカード */}
-        <div className="input-deck flex-1 bg-white dark:bg-shelter-dark-bg p-8 flex flex-col gap-6 rounded-t-[2.5rem] shadow-[0_-8px_40px_-15px_rgba(0,0,0,0.08)] overflow-hidden">
-          
-          {/* カテゴリ選択と保存ボタン */}
+        <div className="input-deck flex-1 bg-white dark:bg-shelter-dark-bg p-8 flex flex-col gap-6 rounded-t-[2.5rem] shadow-[0_-8px_40px_-15px_rgba(0,0,0,0.08)] overflow-hidden transition-colors">
           <div className="flex items-center justify-between flex-none">
             <div className="flex items-center gap-1 flex-1">
               <button disabled={catPage===0} onClick={()=>setCatPage(p=>p-1)} className={`w-8 h-8 rounded-full flex items-center justify-center ${catPage===0?'text-gray-200 dark:text-gray-700':'bg-shelter-chip dark:bg-shelter-dark-chip text-shelter-text'}`}><span className="material-symbols-outlined !text-base">chevron_left</span></button>
@@ -233,35 +240,34 @@ const App = () => {
             </div>
             <div className="flex flex-col items-center gap-1 pl-3 border-l border-shelter-border/30">
               <button onClick={handleSave} disabled={canvasWords.length===0} className={`w-12 h-12 rounded-full flex items-center justify-center ${canvasWords.length>0?'bg-shelter-text dark:bg-shelter-dark-text text-white shadow-md':'bg-shelter-chip dark:bg-shelter-dark-chip text-shelter-muted opacity-50'}`}><span className="material-symbols-outlined !text-lg">done_all</span></button>
-              {debugInfo && (<div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-shelter-chip dark:bg-shelter-dark-chip"><span className={`w-1 h-1 rounded-full ${isLoading?'bg-shelter-text animate-ping':'bg-stone-400'}`}></span><span className="text-[8px] text-shelter-muted dark:text-shelter-dark-muted">{isLoading?'思考中':(aiDisabled?'休憩':'エラー')}</span></div>)}
+              {debugInfo && (<div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-shelter-chip dark:bg-shelter-dark-chip"><span className={`w-1 h-1 rounded-full ${isLoading?'bg-shelter-text animate-ping':'bg-stone-400'}`}></span><span className="text-[8px] text-shelter-muted dark:text-shelter-dark-muted whitespace-nowrap">{isLoading?'思考中':(aiDisabled?'休憩':'エラー')}</span></div>)}
             </div>
           </div>
 
-          {/* 言葉の選択エリア (スクロール可能) */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-8 pb-24">
+          <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-10 pb-20">
             {!selectedCategory ? (
                 <div className="flex items-center justify-center h-20 italic text-xs text-shelter-muted font-mono bg-shelter-chip/50 rounded-xl">カテゴリを選んでください</div>
             ) : (
               <>
-                {/* いつもの */}
+                {/* 1. いつもの */}
                 <section>
-                  <div className="text-[10px] font-bold text-shelter-muted mb-3 px-1 flex items-center gap-2"><span className="material-symbols-outlined !text-sm">bookmark</span>いつもの</div>
+                  <div className="text-[10px] font-bold text-shelter-muted mb-3 px-1 flex items-center gap-2 tracking-widest"><span className="material-symbols-outlined !text-sm">bookmark</span>いつもの</div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={()=>setShowCustomInput(true)} className="px-3 py-2 bg-shelter-chip dark:bg-shelter-dark-chip rounded-full text-shelter-muted flex items-center justify-center"><span className="material-symbols-outlined !text-sm">add</span></button>
-                    {showCustomInput && <div className="flex items-center gap-2 animate-in slide-in-from-left-2"><input ref={customInputRef} autoFocus className="bg-white dark:bg-shelter-dark-bg border-2 border-shelter-border px-3 py-1.5 rounded-full text-sm outline-none w-32 dark:text-white" onKeyDown={e=>e.key==='Enter'&&processCustomInput(e.target.value.trim())} onBlur={e=>!e.target.value.trim()&&setShowCustomInput(false)}/><button onClick={()=>processCustomInput(customInputRef.current.value.trim())} className="w-8 h-8 rounded-full bg-shelter-text text-white flex items-center justify-center"><span className="material-symbols-outlined !text-sm">check</span></button></div>}
+                    {showCustomInput && <div className="flex items-center gap-2 animate-in slide-in-from-left-2"><input ref={customInputRef} autoFocus className="bg-white dark:bg-shelter-dark-bg border-2 border-shelter-border px-3 py-1.5 rounded-full text-sm outline-none w-32 dark:text-white" onKeyDown={e=>e.key==='Enter'&&processCustomInput(e.target.value.trim())} onBlur={e=>!e.target.value.trim()&&setShowCustomInput(false)}/><button onClick={()=>processCustomInput(customInputRef.current.value.trim())} className="w-8 h-8 rounded-full bg-shelter-text text-white flex items-center justify-center shadow-sm"><span className="material-symbols-outlined !text-sm">check</span></button></div>}
                     {DEFAULT_WORDS[selectedCategory].map(word=><Chip key={word} onClick={()=>handleAddWord(word)}>{word}</Chip>)}
                   </div>
                 </section>
 
-                {/* AIのひらめき (復活と改善) */}
+                {/* 2. AIのひらめき */}
                 {apiKey && (
                     <section className="border-t border-shelter-border/30 pt-4">
                         <div className="flex items-center justify-between mb-3 px-1">
-                            <div className="text-[10px] font-bold text-shelter-muted dark:text-shelter-dark-muted flex items-center gap-2"><span className="material-symbols-outlined !text-sm">auto_stars</span>AIのひらめき</div>
-                            <button onClick={()=>fetchWords(selectedCategory)} disabled={isLoading || aiDisabled} className={`w-6 h-6 rounded-full flex items-center justify-center text-shelter-muted transition-all hover:bg-shelter-chip ${isLoading?'animate-spin':''}`}><span className="material-symbols-outlined !text-xs">refresh</span></button>
+                            <div className="text-[10px] font-bold text-shelter-muted dark:text-shelter-dark-muted flex items-center gap-2 tracking-widest"><span className="material-symbols-outlined !text-sm">auto_stars</span>AIのひらめき</div>
+                            <button onClick={()=>fetchWords(selectedCategory)} disabled={isLoading || aiDisabled} className={`w-6 h-6 rounded-full flex items-center justify-center text-shelter-muted hover:bg-shelter-chip transition-all ${isLoading?'animate-spin':''}`}><span className="material-symbols-outlined !text-xs">refresh</span></button>
                         </div>
                         <div className="flex flex-wrap gap-2 min-h-[44px]">
-                            {aiWords[selectedCategory] ? (
+                            {Array.isArray(aiWords[selectedCategory]) ? (
                                 aiWords[selectedCategory].map(word=><Chip key={`ai-${word}`} onClick={()=>handleAddWord(word)}>{word}</Chip>)
                             ) : (
                                 <div className="text-[10px] text-shelter-muted italic px-1 py-1">
@@ -272,11 +278,11 @@ const App = () => {
                     </section>
                 )}
 
-                {/* ポケット */}
+                {/* 3. ポケット */}
                 {userWords.length > 0 && (
                     <section className="border-t border-shelter-border/30 pt-4">
                         <div className="flex items-center justify-between mb-3 px-1">
-                            <div className="text-[10px] font-bold text-shelter-muted dark:text-shelter-dark-muted flex items-center gap-2"><span className="material-symbols-outlined !text-sm">inventory_2</span>ポケット</div>
+                            <div className="text-[10px] font-bold text-shelter-muted dark:text-shelter-dark-muted flex items-center gap-2 tracking-widest"><span className="material-symbols-outlined !text-sm">inventory_2</span>ポケット</div>
                             <button onClick={() => setIsPocketEditing(!isPocketEditing)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isPocketEditing ? 'bg-red-100 text-red-500' : 'text-shelter-muted'}`}><span className="material-symbols-outlined !text-xs">{isPocketEditing ? 'check' : 'edit'}</span></button>
                         </div>
                         <div className="flex flex-wrap gap-2">{userWords.map((item) => <Chip key={item.id} isEditing={isPocketEditing} onClick={() => isPocketEditing ? handleDeleteUserWord(item.id, item.word) : handleAddWord(item.word)}>{item.word}</Chip>)}</div>
@@ -290,82 +296,251 @@ const App = () => {
     );
   };
 
-  // --- タブ：観察 ---
+// --- タブ：観察（抽出・堆積・小石・オーラの完全統合版） ---
   const ObserveTab = () => {
     const [records,setRecords] = useState([]);
-    const [mode,setMode] = useState('distill');
+    const [mode,setMode] = useState('distill'); // 'distill' or 'sediment'
     const [randomPebble, setRandomPebble] = useState(null);
-    useEffect(()=>{db.logs.orderBy('timestamp').reverse().toArray().then(all=>{setRecords(all);if(all.flatMap(r=>r.words).length>0)setRandomPebble(all.flatMap(r=>r.words)[Math.floor(Math.random()*all.flatMap(r=>r.words).length)]);});}, []);
-    const stats = useMemo(() => { if (!records.length) return null; const activity = []; const today = new Date(); for(let i=27; i>=0; i--){ const d = new Date(today); d.setDate(today.getDate() - i); activity.push({ date: d.toISOString().split('T')[0], hasLog: records.some(r => r.dateString === d.toISOString().split('T')[0]) }); } const wordCount = {}; records.forEach(r => r.words.forEach(w => wordCount[w] = (wordCount[w] || 0) + 1)); return { activity, ranking: Object.entries(wordCount).sort((a,b) => b[1] - a[1]).slice(0, 5) }; }, [records]);
+    const [isPebbleSwapping, setIsPebbleSwapping] = useState(false);
+
+    // データ読み込み
+    useEffect(()=>{
+        db.logs.orderBy('timestamp').reverse().toArray().then(all=>{
+            setRecords(all);
+            if (all.flatMap(r => r.words).length > 0) {
+                const words = all.flatMap(r => r.words);
+                setRandomPebble(words[Math.floor(Math.random() * words.length)]);
+            }
+        });
+    }, []);
+
+    // 小石の拾い直し
+    const refreshPebble = () => {
+        const allWords = records.flatMap(r => r.words);
+        if (allWords.length > 0 && !isPebbleSwapping) {
+            setIsPebbleSwapping(true);
+            setTimeout(() => {
+                setRandomPebble(allWords[Math.floor(Math.random() * allWords.length)]);
+            }, 300);
+            setTimeout(() => setIsPebbleSwapping(false), 600);
+        }
+    };
+
+    // 統計（28日足あと）
+    const stats = useMemo(() => {
+        if (!records.length) return null;
+        const activity = [];
+        const today = new Date();
+        for(let i=27; i>=0; i--){
+            const d = new Date(today); d.setDate(today.getDate() - i);
+            activity.push({ date: d.toISOString().split('T')[0], hasLog: records.some(r => r.dateString === d.toISOString().split('T')[0]) });
+        }
+        const wordCount = {}; records.forEach(r => r.words.forEach(w => wordCount[w] = (wordCount[w] || 0) + 1));
+        return { activity, ranking: Object.entries(wordCount).sort((a,b) => b[1] - a[1]).slice(0, 5) };
+    }, [records]);
+
     return (
       <div className="p-8 h-full bg-shelter-bg dark:bg-shelter-dark-bg overflow-auto transition-colors duration-700">
-        <div className="pt-6 px-6 pb-0 flex justify-between items-end mb-8 font-mono text-shelter-muted dark:text-shelter-dark-muted"><h1 className="text-sm tracking-widest">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</h1></div>
+        {/* 日付表示 */}
+        <div className="pt-6 px-6 pb-0 flex justify-between items-end mb-8 font-mono text-shelter-muted dark:text-shelter-dark-muted">
+            <h1 className="text-sm tracking-widest">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</h1>
+        </div>
+        
+        {/* 1. 統計カード（足あと・よく出る） */}
         {records.length > 0 && stats && (
             <div className="mb-10 grid grid-cols-2 gap-4 animate-in">
-                <div className="bg-white dark:bg-shelter-dark-chip p-4 rounded-2xl border border-shelter-border/30 shadow-sm transition-colors"><div className="text-[10px] font-bold text-shelter-muted mb-3 tracking-widest uppercase text-center">足あと</div><div className="grid grid-cols-7 gap-y-3 gap-x-1">{stats.activity.map(day => (<div key={day.date} className={`w-1.5 h-1.5 rounded-full justify-self-center ${day.hasLog ? 'bg-shelter-text dark:bg-shelter-dark-text scale-110 shadow-sm' : 'bg-shelter-chip dark:bg-stone-700'}`}></div>))}</div></div>
-                <div className="bg-white dark:bg-shelter-dark-chip p-4 rounded-2xl border border-shelter-border/30 shadow-sm overflow-hidden text-ellipsis"><div className="text-[10px] font-bold text-shelter-muted mb-3 tracking-widest uppercase text-center">よく出る</div><div className="flex flex-col gap-1.5">{stats.ranking.map(item => <div key={item[0]} className="flex justify-between items-center text-[10px] text-shelter-text dark:text-shelter-dark-text"><span className="truncate pr-1">{item[0]}</span><span className="opacity-50">x{item[1]}</span></div>)}</div></div>
+                <div className="bg-white dark:bg-shelter-dark-chip p-4 rounded-2xl border border-shelter-border/30 shadow-sm transition-colors">
+                    <div className="text-[10px] font-bold text-shelter-muted mb-3 tracking-widest uppercase text-center">足あと</div>
+                    <div className="grid grid-cols-7 gap-y-3 gap-x-1">{stats.activity.map(day => (<div key={day.date} className={`w-1.5 h-1.5 rounded-full justify-self-center ${day.hasLog ? 'bg-shelter-text dark:bg-shelter-dark-text scale-110 shadow-sm' : 'bg-shelter-chip dark:bg-stone-700'}`}></div>))}</div>
+                </div>
+                <div className="bg-white dark:bg-shelter-dark-chip p-4 rounded-2xl border border-shelter-border/30 shadow-sm overflow-hidden text-ellipsis transition-colors">
+                    <div className="text-[10px] font-bold text-shelter-muted mb-3 tracking-widest uppercase text-center">よく出る</div>
+                    <div className="flex flex-col gap-1.5">{stats.ranking.map(item => <div key={item[0]} className="flex justify-between items-center text-[10px] text-shelter-text dark:text-shelter-dark-text"><span className="truncate pr-1">{item[0]}</span><span className="opacity-50">x{item[1]}</span></div>)}</div>
+                </div>
             </div>
         )}
-        {randomPebble && (<div className="mb-10 p-6 bg-stone-50 dark:bg-stone-800/30 rounded-[2.5rem] border border-dashed border-stone-200 dark:border-stone-700 flex flex-col items-center gap-3 animate-in"><span className="text-[10px] font-mono text-stone-400 tracking-widest uppercase">ひろった小石</span><span className="text-lg font-medium text-shelter-text dark:text-shelter-dark-text opacity-80 italic">“ {randomPebble} ”</span></div>)}
+
+        {/* 2. ひろった小石（クリックで入れ替え） */}
+        {randomPebble && (
+            <div className="mb-14 flex justify-center">
+                <div 
+                    onClick={refreshPebble}
+                    className={`group relative cursor-pointer select-none px-10 py-5 rounded-[2.5rem] bg-white/40 dark:bg-shelter-dark-chip/20 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-shelter-border/20 transition-all duration-500 hover:scale-105 active:scale-95 ${isPebbleSwapping ? 'animate-pebble-swap' : ''}`}
+                >
+                    <div className="flex flex-col items-center gap-1.5">
+                        <span className="text-[9px] font-mono text-shelter-muted dark:text-stone-500 tracking-[0.2em] uppercase opacity-60">ひろった小石</span>
+                        <span className="text-xl font-medium text-shelter-text dark:text-shelter-dark-text italic opacity-90">“ {randomPebble} ”</span>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* 3. ヘッダー（ことばの跡 ＆ モード切替） */}
         <div className="flex justify-between items-end mb-8 border-b border-shelter-border/30 dark:border-shelter-dark-border/30 pb-2">
-          <div className="flex items-center gap-3"><h2 className="text-xs font-bold text-shelter-muted dark:text-shelter-dark-muted tracking-wide">ことばの跡</h2>
-              <div className="flex gap-1.5 ml-2">{[{ id: 'amber', label: '温' }, { id: 'sky',   label: '清' }, { id: 'dream', label: '夢' }, { id: 'white', label: '無' }].map(a => (<button key={a.id} onClick={() => setAuraType(a.id)} className={`w-5 h-5 text-[8px] flex items-center justify-center rounded-full transition-all ${auraType === a.id ? 'bg-shelter-text text-white dark:bg-shelter-dark-text' : 'text-shelter-muted dark:text-stone-600'}`}>{a.label}</button>))}</div>
+          <div className="flex items-center gap-3">
+              <h2 className="text-xs font-bold text-shelter-muted dark:text-shelter-dark-muted tracking-wide">ことばの跡</h2>
+              <div className="flex gap-1.5 ml-2">
+                  {[
+                      { id: 'amber', label: '温' }, { id: 'sky',   label: '清' }, { id: 'dream', label: '夢' }, { id: 'white', label: '無' }
+                  ].map(a => (
+                      <button key={a.id} onClick={() => setAuraType(a.id)} className={`w-5 h-5 text-[8px] flex items-center justify-center rounded-full transition-all ${auraType === a.id ? 'bg-shelter-text text-white dark:bg-shelter-dark-text' : 'text-shelter-muted dark:text-stone-600'}`}>{a.label}</button>
+                  ))}
+              </div>
           </div>
-          <div className="flex gap-4 text-[10px] font-mono"><button onClick={()=>setMode('distill')} className={mode==='distill'?'text-shelter-text dark:text-white font-bold border-b border-shelter-text':'text-shelter-muted'}>抽出</button><button onClick={()=>setMode('sediment')} className={mode==='sediment'?'text-shelter-text dark:text-white font-bold border-b border-shelter-text':'text-shelter-muted'}>堆積</button></div>
+          {/* ↓ ここが消えていたモード切替ボタンです ↓ */}
+          <div className="flex gap-4 text-[10px] font-mono">
+            <button onClick={()=>setMode('distill')} className={mode==='distill'?'text-shelter-text dark:text-white font-bold border-b border-shelter-text':'text-shelter-muted'}>抽出</button>
+            <button onClick={()=>setMode('sediment')} className={mode==='sediment'?'text-shelter-text dark:text-white font-bold border-b border-shelter-text':'text-shelter-muted'}>堆積</button>
+          </div>
         </div>
-        <div className="relative">{mode === 'distill' ? (<div className="relative pl-10 space-y-12 pb-20"><div className="absolute left-3 top-2 bottom-2 w-[1px] dotted-line opacity-50"></div>{records.map((log, i) => { let atmosphereGap = null; const nextLog = records[i + 1]; if (nextLog) { const diffDays = Math.round(Math.abs(new Date(log.dateString) - new Date(nextLog.dateString)) / (1000 * 60 * 60 * 24)); if (diffDays > 1) { const auraStyles = { amber: "via-amber-300/40 dark:via-orange-400/10", sky: "via-sky-300/40 dark:via-blue-400/10", white: "via-white dark:via-stone-100/10", dream: "bg-gradient-to-r from-rose-400/40 via-purple-400/40 to-sky-400/40 dark:from-rose-500/20 dark:via-purple-500/20 dark:to-sky-500/20 animate-dream" }; atmosphereGap = (<div className="w-full h-32 my-6 relative aura-mask">{auraType==='dream'?(<div className={`absolute inset-0 scale-150 blur-3xl ${auraStyles.dream}`}></div>):(<div className={`absolute inset-0 bg-gradient-to-b from-transparent ${auraStyles[auraType]} to-transparent blur-2xl`}></div>)}</div>); } } return (<React.Fragment key={log.id}><div className="relative animate-in"><div className="absolute -left-[37px] top-1.5 w-6 h-6 rounded-full bg-white dark:bg-shelter-dark-bg border border-shelter-border dark:border-shelter-dark-border flex items-center justify-center z-10 shadow-sm"><div className="w-1 h-1 rounded-full bg-shelter-muted"></div></div><div className="text-[9px] font-mono text-shelter-muted mb-3 tracking-widest opacity-80">{log.dateString}</div><div className="flex flex-wrap gap-2.5">{log.words.map((w,k)=> (<span key={k} className="text-sm text-shelter-text dark:text-shelter-dark-text bg-white dark:bg-shelter-dark-chip/80 px-3 py-1.5 rounded-md border border-shelter-border/50 dark:border-shelter-dark-border/30 shadow-sm">{w}</span>))}</div></div>{atmosphereGap}</React.Fragment>); })}</div>) : (<div className="flex flex-wrap-reverse gap-3 content-end items-end p-4 animate-in pb-20">{records.map((log, i) => { const opacity = Math.max(20, 100 - (i * 10)); const scale = Math.max(0.8, 1 - (i * 0.05)); return log.words.map((w, k) => (<span key={`${log.id}-${k}`} style={{ opacity: `${opacity}%`, transform: `scale(${scale})` }} className="text-sm px-3 py-2 bg-white dark:bg-shelter-dark-chip text-shelter-text dark:text-shelter-dark-text border border-shelter-border dark:border-shelter-dark-border rounded-lg shadow-sm transition-all duration-700 hover:opacity-100 hover:scale-110">{w}</span>)); })}</div>)}</div>
+
+        {/* 4. メイン表示エリア */}
+        <div className="relative">
+            {mode === 'distill' ? (
+                /* --- 抽出モード：点描タイムライン --- */
+                <div className="relative pl-10 space-y-12 pb-32">
+                    <div className="absolute left-3 top-2 bottom-2 w-[1px] dotted-line opacity-50"></div>
+                    {records.map((log, i) => {
+                        const diffDays = Math.round(Math.abs(new Date() - new Date(log.dateString)) / (1000 * 60 * 60 * 24));
+                        const scale = Math.max(0.7, 1 - (diffDays * 0.01));
+                        const opacity = Math.max(0.3, 1 - (diffDays * 0.02));
+                        let atmosphereGap = null;
+                        const nextLog = records[i + 1];
+                        if (nextLog) {
+                            const dDiff = Math.round(Math.abs(new Date(log.dateString) - new Date(nextLog.dateString)) / (1000 * 60 * 60 * 24)); 
+                            if (dDiff > 1) {
+                                const auraStyles = { amber: "via-amber-300/80 dark:via-amber-400/20", sky: "via-sky-200/80 dark:via-blue-400/15", white: "via-white dark:via-stone-100/10", dream: "bg-gradient-to-r from-rose-200/80 via-purple-200/80 to-sky-200/80 dark:from-rose-500/30 dark:via-purple-500/30 dark:to-sky-500/30 animate-dream" };
+                                atmosphereGap = (<div className="w-full h-32 my-6 relative overflow-hidden aura-mask">{auraType==='dream'?(<div className={`absolute inset-0 scale-150 blur-3xl ${auraStyles.dream}`}></div>):(<div className={`absolute inset-0 bg-gradient-to-b from-transparent ${auraStyles[auraType]} to-transparent blur-2xl`}></div>)}</div>);
+                            }
+                        }
+                        return (
+                            <React.Fragment key={log.id}>
+                                <div className="relative animate-in transition-all duration-700" style={{ transform: `scale(${scale})`, opacity: opacity, transformOrigin: 'left center' }}>
+                                    <div className="absolute -left-[37px] top-1.5 w-6 h-6 rounded-full bg-white dark:bg-shelter-dark-bg border border-shelter-border dark:border-shelter-dark-border flex items-center justify-center z-10 shadow-sm"><div className="w-1 h-1 rounded-full bg-shelter-muted"></div></div>
+                                    <div className="text-[9px] font-mono text-shelter-muted mb-3 tracking-widest opacity-80">{log.dateString}</div>
+                                    <div className="flex flex-wrap gap-2.5">{log.words.map((w,k)=> (<span key={k} className="text-sm text-shelter-text dark:text-shelter-dark-text bg-white dark:bg-shelter-dark-chip/80 px-3 py-1.5 rounded-md border border-shelter-border/50 dark:border-shelter-dark-border/30 shadow-sm hover:scale-110 hover:opacity-100 transition-all">{w}</span>))}</div>
+                                </div>
+                                {atmosphereGap}
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* --- 堆積モード：地層 --- */
+                <div className="flex flex-wrap-reverse gap-3 content-end items-end p-4 animate-in pb-32">
+                    {records.map((log, i) => {
+                        const diffDays = Math.round(Math.abs(new Date() - new Date(log.dateString)) / (1000 * 60 * 60 * 24));
+                        const scale = Math.max(0.6, 1 - (diffDays * 0.02));
+                        const opacity = Math.max(0.2, 1 - (diffDays * 0.05));
+                        return log.words.map((w, k) => (<span key={`${log.id}-${k}`} style={{ opacity, transform: `scale(${scale})` }} className="text-sm px-3 py-2 bg-white dark:bg-shelter-dark-chip text-shelter-text dark:text-shelter-dark-text border border-shelter-border dark:border-shelter-dark-border rounded-lg shadow-sm transition-all duration-700 hover:opacity-100 hover:scale-125 hover:z-20">{w}</span>));
+                    })}
+                </div>
+            )}
+        </div>
       </div>
     );
   };
-
-  // --- タブ：設定 ---
+// --- タブ：設定（見た目・API・データ管理の統合版） ---
   const SettingsTab = () => {
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
     const fileInputRef = useRef(null);
 
+    // データエクスポート：logs と user_words をまとめてJSON化
     const handleExport = async () => {
         const logs = await db.logs.toArray();
         const userWords = await db.user_words.toArray();
         const data = { logs, userWords, version: 2, exportedAt: new Date().toISOString() };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `shelter_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shelter_backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
     };
 
+    // データインポート：ファイルから読み込んでDBに追加
     const handleImport = (e) => {
-        const file = e.target.files[0]; if (!file) return;
+        const file = e.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
                 const data = JSON.parse(event.target.result);
-                if (confirm('データを復元（追加）しますか？')) {
+                if (confirm('データを復元（現在のデータに追加）しますか？')) {
                     if (data.logs) await db.logs.bulkAdd(data.logs).catch(() => {});
                     if (data.userWords) await db.user_words.bulkAdd(data.userWords).catch(() => {});
-                    alert('復元が完了しました'); window.location.reload();
+                    alert('復元が完了しました');
+                    window.location.reload();
                 }
-            } catch (err) { alert('形式が正しくありません'); }
+            } catch (err) { alert('ファイルの形式が正しくありません'); }
         };
         reader.readAsText(file);
+    };
+
+    const handleClear = async () => {
+        if (confirm('すべての記録を消去しますか？（元に戻せません）')) {
+            await db.logs.clear();
+            await db.user_words.clear();
+            alert('データを消去しました');
+            window.location.reload();
+        }
     };
 
     return (
       <div className="p-8 h-full bg-shelter-bg dark:bg-shelter-dark-bg overflow-auto space-y-12 transition-colors duration-700 text-shelter-text dark:text-shelter-dark-text">
         <h2 className="text-xs font-mono text-shelter-muted dark:text-shelter-dark-muted tracking-widest uppercase mb-8 font-bold text-center">システム</h2>
         
-        <section className="space-y-4"><label className="block text-sm font-medium">見た目</label><button onClick={toggleTheme} className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border p-3 rounded-lg flex items-center justify-between text-sm transition-all hover:border-shelter-text"><span>{theme === 'light' ? '朝モード (Light)' : '夜モード (Dark)'}</span><span className="material-symbols-outlined">toggle_{theme === 'light' ? 'off' : 'on'}</span></button></section>
-        <section className="space-y-4"><label className="block text-sm font-medium">Gemini API キー</label><input type="password" className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border p-3 rounded-lg text-sm outline-none transition-all focus:border-shelter-text" placeholder="Key..." value={apiKey} onChange={e=>setApiKey(e.target.value)} /></section>
-        <section className="space-y-4 pt-4 border-t border-shelter-border/30 dark:border-shelter-dark-border/30"><label className="block text-sm font-medium">データの管理</label>
-          <div className="grid grid-cols-2 gap-3"><button onClick={handleExport} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border p-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip dark:hover:bg-stone-700 transition-colors"><span className="material-symbols-outlined !text-sm">file_download</span>バックアップ</button><button onClick={() => fileInputRef.current.click()} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border p-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip dark:hover:bg-stone-700 transition-colors"><span className="material-symbols-outlined !text-sm">file_upload</span>復元</button><input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} /></div>
+        {/* 見た目設定 */}
+        <section className="space-y-4">
+          <label className="block text-sm font-medium">見た目</label>
+          <button onClick={toggleTheme} className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-3 rounded-lg flex items-center justify-between text-sm transition-all hover:border-shelter-text">
+            <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined !text-lg">{theme === 'light' ? 'light_mode' : 'dark_mode'}</span>
+                {theme === 'light' ? '朝モード (Light)' : '夜モード (Dark)'}
+            </span>
+            <span className="material-symbols-outlined">toggle_{theme === 'light' ? 'off' : 'on'}</span>
+          </button>
         </section>
-        <section className="pt-12 flex justify-center"><button onClick={async()=>{if(confirm('全ての記録を消去しますか？（元に戻せません）')){await db.logs.clear();await db.user_words.clear();window.location.reload();}}} className="text-[10px] font-mono text-shelter-muted dark:text-stone-600 hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400/30 pb-0.5">全ての記録を消去する</button></section>
+
+        {/* AI設定 */}
+        <section className="space-y-4">
+          <label className="block text-sm font-medium">Gemini API キー</label>
+          <input 
+            type="password" 
+            className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-3 rounded-lg text-sm outline-none transition-all focus:border-shelter-text" 
+            placeholder="Key..." 
+            value={apiKey} 
+            onChange={e=>setApiKey(e.target.value)} 
+          />
+        </section>
+
+        {/* データ管理設定 */}
+        <section className="space-y-4 pt-4 border-t border-shelter-border/30 dark:border-shelter-dark-border/30">
+          <label className="block text-sm font-medium">データの管理</label>
+          <div className="grid grid-cols-2 gap-3">
+              <button onClick={handleExport} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border py-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip dark:hover:bg-stone-700 transition-colors">
+                  <span className="material-symbols-outlined !text-sm">file_download</span>バックアップ
+              </button>
+              <button onClick={() => fileInputRef.current.click()} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border py-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip dark:hover:bg-stone-700 transition-colors">
+                  <span className="material-symbols-outlined !text-sm">file_upload</span>復元
+              </button>
+              <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} />
+          </div>
+        </section>
+
+        {/* 全消去設定（一番下に控えめに） */}
+        <section className="pt-12 flex justify-center">
+            <button onClick={handleClear} className="text-[10px] font-mono text-shelter-muted dark:text-stone-600 hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400/30 pb-0.5">
+                全ての記録を消去する
+            </button>
+        </section>
       </div>
     );
   };
-
-  // --- 全体レイアウト ---
+  
   return (
     <div className="h-screen flex flex-col transition-colors duration-700">
-      <div className="flex-1 relative overflow-hidden">{activeTab==='record' && <RecordTab />}{activeTab==='observe' && <ObserveTab />}{activeTab==='settings' && <SettingsTab />}</div>
+      <div className="flex-1 relative overflow-hidden bg-shelter-bg dark:bg-shelter-dark-bg transition-colors duration-700">{activeTab==='record' && <RecordTab />} {activeTab==='observe' && <ObserveTab />} {activeTab==='settings' && <SettingsTab />}</div>
       <div className="flex justify-center gap-12 p-4 border-t border-shelter-border/30 bg-white dark:bg-shelter-dark-chip z-10 transition-colors duration-700">
         {[{ id: 'record', icon: 'edit_note', label: '記録' }, { id: 'observe', icon: 'grid_view', label: '観察' }, { id: 'settings', icon: 'tune', label: '設定' }].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 w-14 ${activeTab === tab.id ? 'text-shelter-text dark:text-white' : 'text-shelter-muted dark:text-stone-600'}`}><span className="material-symbols-outlined !text-2xl">{tab.icon}</span><span className="text-[10px] font-bold tracking-widest">{tab.label}</span></button>
