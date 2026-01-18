@@ -1,0 +1,15 @@
+{
+  "short_name": "Log.",
+  "name": "Log. - 凪の記録",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#F2F0EB",
+  "background_color": "#F2F0EB"
+}
