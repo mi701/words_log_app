@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
     <title>Log.</title>
     
     <!-- PWA設定 -->
@@ -274,16 +275,50 @@ const App = () => {
     );
   };
 
-  const SettingsTab = () => {
+const SettingsTab = () => {
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
     const fileInputRef = useRef(null);
     return (
       <div className="p-8 h-full bg-shelter-bg dark:bg-shelter-dark-bg overflow-auto space-y-12 transition-colors duration-700 text-shelter-text dark:text-shelter-dark-text">
-        <h2 className="text-xs font-mono text-shelter-muted dark:text-shelter-dark-muted tracking-widest uppercase mb-8 font-bold text-center">システム</h2>
-        <section className="space-y-4"><label className="block text-sm font-medium text-shelter-muted">見た目</label><button onClick={toggleTheme} className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-3 rounded-lg flex items-center justify-between text-sm transition-all hover:border-shelter-text focus:outline-none"><span>{theme === 'light' ? '朝モード (Light)' : '夜モード (Dark)'}</span><span className="material-symbols-outlined">toggle_{theme === 'light' ? 'off' : 'on'}</span></button></section>
-        <section className="space-y-4"><label className="block text-sm font-medium text-shelter-muted">Gemini API キー</label><input type="password" className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-3 rounded-lg text-sm outline-none transition-all focus:border-shelter-text" placeholder="Key..." value={apiKey} onChange={e=>setApiKey(e.target.value)} /></section>
-        <section className="space-y-4 pt-4 border-t border-shelter-border/30 dark:border-shelter-dark-border/30"><label className="block text-sm font-medium text-shelter-muted">データの管理</label><div className="grid grid-cols-2 gap-3"><button onClick={async()=>{const logs=await db.logs.toArray();const userWords=await db.user_words.toArray();const blob=new Blob([JSON.stringify({logs,userWords},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`shelter_${new Date().toISOString().split('T')[0]}.json`;a.click();}} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border py-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip transition-colors text-shelter-text dark:text-shelter-dark-text shadow-sm"><span className="material-symbols-outlined !text-sm">file_download</span>バックアップ</button><button onClick={()=>fileInputRef.current.click()} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border py-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 hover:bg-shelter-chip transition-colors text-shelter-text dark:text-shelter-dark-text shadow-sm"><span className="material-symbols-outlined !text-sm">file_upload</span>復元</button><input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=async(event)=>{try{const data=JSON.parse(event.target.result);if(confirm('復元しますか？')){if(data.logs)await db.logs.bulkAdd(data.logs).catch(()=>{});if(data.userWords)await db.user_words.bulkAdd(data.userWords).catch(()=>{});window.location.reload();}}catch(err){alert('形式エラー');}};reader.readAsText(file);}} /></div></section>
-        <section className="pt-12 flex justify-center"><button onClick={async()=>{if(confirm('全ての記録を消去しますか？')){await db.logs.clear();await db.user_words.clear();window.location.reload();}}} className="text-[10px] font-mono text-shelter-muted dark:text-stone-600 hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400/30 pb-0.5 focus:outline-none">全ての記録を消去する</button></section>
+        <h2 className="text-xs font-bold text-shelter-muted dark:text-shelter-dark-muted tracking-widest uppercase mb-8 text-center">システム</h2>
+        
+        {/* 見た目設定：iOSでアイコン化けしても意味が通じるように改善 */}
+        <section className="space-y-4">
+          <label className="block text-sm font-medium text-shelter-muted">見た目</label>
+          <button onClick={toggleTheme} className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-4 rounded-xl flex items-center justify-between transition-all hover:border-shelter-text focus:outline-none shadow-sm">
+            <span className="text-sm font-medium">{theme === 'light' ? '朝モード' : '夜モード'}</span>
+            <div className="flex items-center gap-2 text-shelter-muted">
+                <span className="text-[10px] font-mono tracking-tighter uppercase">{theme === 'light' ? 'OFF' : 'ON'}</span>
+                <span className="material-symbols-outlined !text-2xl">
+                    {theme === 'light' ? 'toggle_off' : 'toggle_on'}
+                </span>
+            </div>
+          </button>
+        </section>
+
+        <section className="space-y-4">
+          <label className="block text-sm font-medium text-shelter-muted">Gemini API キー</label>
+          <input type="password" className="w-full bg-white dark:bg-shelter-dark-chip border border-shelter-border dark:border-shelter-dark-border p-4 rounded-xl text-sm outline-none transition-all focus:border-shelter-text shadow-sm" placeholder="キーを入力..." value={apiKey} onChange={e=>setApiKey(e.target.value)} />
+        </section>
+
+        <section className="space-y-4 pt-4 border-t border-shelter-border/30 dark:border-shelter-dark-border/30">
+          <label className="block text-sm font-medium text-shelter-muted">データの管理</label>
+          <div className="grid grid-cols-2 gap-3">
+              <button onClick={async()=>{const logs=await db.logs.toArray();const userWords=await db.user_words.toArray();const blob=new Blob([JSON.stringify({logs,userWords},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`shelter_${new Date().toISOString().split('T')[0]}.json`;a.click();}} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border py-3 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-shelter-chip transition-colors text-shelter-text dark:text-shelter-dark-text shadow-sm">
+                  <span className="material-symbols-outlined !text-sm">file_download</span>バックアップ
+              </button>
+              <button onClick={() => fileInputRef.current.click()} className="bg-white dark:bg-shelter-dark-chip border border-shelter-border py-3 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-shelter-chip transition-colors text-shelter-text dark:text-shelter-dark-text shadow-sm">
+                  <span className="material-symbols-outlined !text-sm">file_upload</span>復元
+              </button>
+              <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=async(event)=>{try{const data=JSON.parse(event.target.result);if(confirm('復元しますか？')){if(data.logs)await db.logs.bulkAdd(data.logs).catch(()=>{});if(data.userWords)await db.user_words.bulkAdd(data.userWords).catch(()=>{});window.location.reload();}}catch(err){alert('形式エラー');}};reader.readAsText(file);}} />
+          </div>
+        </section>
+
+        <section className="pt-12 flex justify-center">
+            <button onClick={async()=>{if(confirm('全ての記録を消去しますか？')){await db.logs.clear();await db.user_words.clear();window.location.reload();}}} className="text-[10px] font-mono text-shelter-muted dark:text-stone-600 hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400/30 pb-0.5 focus:outline-none">
+                全ての記録を消去する
+            </button>
+        </section>
       </div>
     );
   };
